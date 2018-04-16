@@ -1,5 +1,6 @@
 import base64
 
+from http.client import HTTPSConnection
 from chargebee import APIError,PaymentError,InvalidRequestError,OperationFailedError, compat
 from chargebee.main import ChargeBee
 from chargebee.main import Environment
@@ -34,11 +35,13 @@ def request(method, url, env, params=None, headers=None):
         connection = compat.VerifiedHTTPSConnection(meta.netloc)
         connection.set_cert(ca_certs=ChargeBee.ca_cert_path)
     else:
-        if Environment.protocol == "https":
-            connection = compat.HTTPSConnection(meta.netloc)
+        connect_impl = compat.HTTPSConnection if Environment.protocol == "https" else compat.HTTPConnection
+        if env.proxy:
+            connection = connect_impl(env.proxy, env.proxy_port)
+            connection.set_tunnel(meta.netloc, meta.port)
         else:
-            connection = compat.HTTPConnection(meta.netloc)    
-        
+            connection = connect_impl(meta.netloc)
+
     connection.request(method.upper(), meta.path + '?' + meta.query, payload, headers)
     try:
         response = connection.getresponse()
